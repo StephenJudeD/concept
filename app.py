@@ -99,18 +99,19 @@ app.layout = dbc.Container(
                 })
             ], width=12)
         ]),
-        dcc.Store(id="store-conversation", data=""),
+        dcc.Store(id="store-conversation", data=[]),
         dbc.Spinner(html.Div(id="loading-component"))
     ],
 )
 
 @app.callback(
-    Output("display-conversation", "children"), [Input("store-conversation", "data")]
+    Output("display-conversation", "children"), 
+    [Input("store-conversation", "data")]
 )
 def update_display(chat_history):
     return [
-        textbox(x, box="user") if i % 2 == 0 else textbox(x, box="AI")
-        for i, x in enumerate(chat_history.split("<split>")[:-1])
+        textbox(x['message'], box=x['box'], name="Stephen" if x['box'] == "AI" else "You")
+        for x in chat_history
     ]
 
 @app.callback(
@@ -127,9 +128,9 @@ def clear_input(n_clicks):
 )
 def run_chatbot(n_clicks, user_input, chat_history):
     if n_clicks == 0:
-        return "", None
+        return chat_history, None
 
-    if user_input is None or user_input == "":
+    if user_input is None or user_input.strip() == "":
         return chat_history, None
 
     name = "Stephen"
@@ -143,17 +144,22 @@ def run_chatbot(n_clicks, user_input, chat_history):
     """
     )
 
-    chat_history += f"You: {user_input}<split>{name}:"
+    chat_history.append({"box": "user", "message": user_input})
 
-    model_input = prompt + chat_history.replace("<split>", "\n")
+    messages = [
+        {"role": "system", "content": prompt},
+    ] + [
+        {"role": "user" if x['box'] == "user" else "assistant", "content": x['message']}
+        for x in chat_history
+    ]
 
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
-        messages=[{"role": "system", "content": model_input}]
+        messages=messages
     )
     model_output = response.choices[0].message['content'].strip()
 
-    chat_history += f"{model_output}<split>"
+    chat_history.append({"box": "AI", "message": model_output})
 
     return chat_history, None
 
